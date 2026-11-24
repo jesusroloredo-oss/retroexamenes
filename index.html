@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Examen Oficial Policía Nacional</title>
+<!-- Librería PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background-color: #525659;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+  }
+
+  /* BARRA SUPERIOR */
+  #toolbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 55px;
+    background: #0f172a;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+  #toolbar h1 { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+  .btn {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+  }
+  .btn:hover { background: #1d4ed8; }
+  .btn-secondary { background: #475569; }
+  .btn-secondary:hover { background: #334155; }
+
+  /* VENTANA MODAL */
+  #editorModal {
+    display: none;
+    position: fixed;
+    top: 65px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 850px;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    z-index: 1100;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .upload-box {
+    background: #f0f9ff;
+    border: 2px dashed #0284c7;
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .config-grid label {
+    font-size: 11px;
+    font-weight: bold;
+    color: #334155;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .config-grid input {
+    padding: 7px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+  }
+  #rawInput {
+    width: 100%;
+    height: 220px;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+
+  /* PÁGINAS A4 IDÉNTICAS AL EXAMEN OFICIAL */
+  #pages-container {
+    margin-top: 75px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 50px;
+  }
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    height: 297mm;
+    background: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.35);
+    padding: 16mm 20mm 14mm 20mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* ENCABEZADO OFICIAL */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1.5px solid #000;
+    padding-bottom: 5px;
+    margin-bottom: 12px;
+  }
+  .header-left {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .header-box {
+    border: 1.5px solid #000;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  /* ESTRUCTURA EXACTA DE LAS PREGUNTAS (ESTILO DFP) */
+  .page-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  .question-block {
+    margin-bottom: 13px;
+    font-size: 9.5pt;
+    line-height: 1.35;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .question-title {
+    font-weight: 700;
+    text-align: justify;
+    margin-bottom: 3px;
+  }
+  .options-group {
+    padding-left: 20px;
+  }
+  .option-line {
+    text-align: justify;
+    margin-bottom: 2px;
+  }
+  .opt-letter {
+    font-weight: normal;
+    display: inline-block;
+    width: 18px;
+  }
+
+  /* PIE DE PÁGINA OFICIAL */
+  .page-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    border-top: 1.5px solid #000;
+    padding-top: 6px;
+    font-size: 9pt;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  .footer-center { text-align: center; font-weight: 700; }
+  .footer-right { text-align: right; }
+
+  /* REGLAS DE IMPRESIÓN CORREGIDAS (NO MÁS HOJAS EN BLANCO) */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  @media print {
+    html, body {
+      background: #fff !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    #toolbar, #editorModal { display: none !important; }
+    #pages-container { 
+      margin: 0 !important; 
+      padding: 0 !important; 
+      display: block !important; 
+      gap: 0 !important;
+    }
+    .sheet {
+      box-shadow: none !important;
+      margin: 0 !important;
+      width: 210mm !important;
+      height: 296.5mm !important; /* Ligeramente menor a 297mm para evitar que rebose a otra hoja */
+      max-height: 296.5mm !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      overflow: hidden !important;
+    }
+    /* Quitamos el salto de página a la última hoja para que no imprima una extra al final */
+    .sheet:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>MAQUETADOR OFICIAL POLICÍA NACIONAL</h1>
+  <div>
+    <button class="btn btn-secondary" onclick="toggleModal(true)">Subir / Cargar Test</button>
+    <button class="btn" onclick="window.print()">Imprimir / Guardar en PDF</button>
+  </div>
+</div>
+
+<div id="editorModal">
+  <h2 style="font-size:15px; margin-bottom:12px;">Cargar Nuevo Examen</h2>
+
+  <div class="upload-box">
+    <input type="file" id="pdfFileInput" accept=".pdf,.txt" style="display:none;">
+    <button type="button" class="btn" style="background:#0284c7; padding:10px 20px; font-size:13px;" onclick="document.getElementById('pdfFileInput').click();">
+      📂 Seleccionar archivo PDF o TXT
+    </button>
+    <div id="fileStatusMsg" style="margin-top:8px; font-size:12px; color:#475569;">
+      Sube el archivo PDF de tu test para formatearlo automáticamente.
+    </div>
+  </div>
+
+  <div class="config-grid">
+    <label>Modelo del examen:
+      <input type="text" id="cfgModelo" value="B" maxlength="2">
+    </label>
+    <label>Pie de página:
+      <input type="text" id="cfgPie" value="EXAMEN POLICIA 43">
+    </label>
+  </div>
+
+  <label style="font-size:11px; font-weight:bold; color:#334155;">Texto detectado (puedes editarlo o pegar directamente aquí):</label>
+  <textarea id="rawInput"></textarea>
+  
+  <div style="margin-top: 12px; text-align: right;">
+    <button class="btn btn-secondary" onclick="toggleModal(false)">Cerrar</button>
+    <button class="btn" onclick="processAndRender()">Aplicar Formato</button>
+  </div>
+</div>
+
+<div id="pages-container"></div>
+
+<script>
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+}
+
+function toggleModal(show) {
+  document.getElementById('editorModal').style.display = show ? 'block' : 'none';
+}
+
+// LECTOR DIRECTO DE PDF SIN CORTES
+document.getElementById('pdfFileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  const msg = document.getElementById('fileStatusMsg');
+  if (!file) return;
+
+  msg.style.color = '#0284c7';
+  msg.innerText = "Procesando archivo: " + file.name + "...";
+
+  if (file.name.toLowerCase().endsWith('.txt')) {
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      document.getElementById('rawInput').value = evt.target.result;
+      msg.style.color = '#15803d';
+      msg.innerText = "Texto cargado con éxito. Pulsa 'Aplicar Formato'.";
+    };
+    reader.readAsText(file);
+  } else if (file.name.toLowerCase().endsWith('.pdf')) {
+    const reader = new FileReader();
+    reader.onload = async function(evt) {
+      try {
+        const typedArray = new Uint8Array(evt.target.result);
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        let fullText = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          
+          let lastY = null;
+          let pageText = "";
+          for (let item of content.items) {
+            if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+              pageText += "\n";
+            } else if (lastY !== null) {
+              pageText += " ";
+            }
+            pageText += item.str;
+            lastY = item.transform[5];
+          }
+          fullText += pageText + "\n";
+        }
+
+        document.getElementById('rawInput').value = fullText;
+        msg.style.color = '#15803d';
+        msg.innerText = `Éxito: extraídas ${pdf.numPages} páginas. Pulsa 'Aplicar Formato'.`;
+      } catch (err) {
+        msg.style.color = '#b91c1c';
+        msg.innerText = "Error al procesar el archivo. Si está bloqueado, copia y pega el texto en el recuadro.";
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+});
+
+// PARSEADOR ROBUSTO
+function parseQuestions(rawText) {
+  let clean = rawText.replace(/Simulacro de Examen/gi, '');
+  
+  clean = clean.replace(/(\n|^)\s*(\d+)[\.\-\)]\s+/g, '\n###Q###$2. ');
+  clean = clean.replace(/(\n|^)\s*([a-cA-C])[\)\.\-]\s+/g, '\n###OPT###$2) ');
+
+  const blocks = clean.split('\n###Q###');
+  const questions = [];
+
+  for (let b of blocks) {
+    let trimmed = b.trim();
+    if (!trimmed) continue;
+
+    const optSplit = trimmed.split('\n###OPT###');
+    const qHeader = optSplit[0].trim();
+    
+    const qMatch = qHeader.match(/^(\d+)[\.\-\)]\s*([\s\S]*)/);
+    if (!qMatch) continue;
+
+    const qNum = qMatch[1];
+    const qTitle = qMatch[2].replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const options = [];
+    for (let i = 1; i < optSplit.length; i++) {
+      const optStr = optSplit[i].trim();
+      const optMatch = optStr.match(/^([a-cA-C])[\)\.\-]\s*([\s\S]*)/);
+      if (optMatch) {
+        const letter = optMatch[1].toLowerCase();
+        const text = optMatch[2].replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
+        options.push({ letter, text });
+      }
+    }
+
+    questions.push({
+      num: qNum,
+      title: qTitle,
+      options: options
+    });
+  }
+
+  return questions;
+}
+
+// RENDERIZADO (Sin portada)
+function renderExam(questions) {
+  const container = document.getElementById('pages-container');
+  container.innerHTML = '';
+
+  const modelo = document.getElementById('cfgModelo').value.trim() || 'B';
+  const pie = document.getElementById('cfgPie').value.trim() || 'EXAMEN POLICIA 43';
+
+  const Q_PER_PAGE = 7;
+  let pageIndex = 1;
+
+  for (let i = 0; i < questions.length; i += Q_PER_PAGE) {
+    const chunk = questions.slice(i, i + Q_PER_PAGE);
+    const isLast = (i + Q_PER_PAGE) >= questions.length;
+    const pageSheet = document.createElement('div');
+    pageSheet.className = 'sheet';
+
+    let qHtml = '';
+    chunk.forEach(q => {
+      let optHtml = '';
+      q.options.forEach(opt => {
+        optHtml += `
+          <div class="option-line">
+            <span class="opt-letter">${opt.letter})</span>${opt.text}
+          </div>
+        `;
+      });
+      qHtml += `
+        <div class="question-block">
+          <div class="question-title">${q.num}. ${q.title}</div>
+          <div class="options-group">${optHtml}</div>
+        </div>
+      `;
+    });
+
+    pageSheet.innerHTML = `
+      <div>
+        <div class="page-header">
+          <div class="header-left">DIRECCIÓN GENERAL DE LA POLICÍA</div>
+          <div class="header-box">${modelo}</div>
+        </div>
+        <div class="page-body">
+          ${qHtml}
+        </div>
+      </div>
+      <div class="page-footer">
+        <div>${pie}</div>
+        <div class="footer-center">${isLast ? 'FIN DEL EJERCICIO' : 'PASE A PÁG. SIGUIENTE'}</div>
+        <div class="footer-right">Pag. ${pageIndex}</div>
+      </div>
+    `;
+    container.appendChild(pageSheet);
+    pageIndex++;
+  }
+}
+
+function processAndRender() {
+  toggleModal(false);
+  const rawText = document.getElementById('rawInput').value.trim();
+  if (rawText) {
+    const parsed = parseQuestions(rawText);
+    if (parsed.length > 0) {
+      renderExam(parsed);
+      return;
+    }
+  }
+}
+
+window.onload = function() {
+  document.getElementById('rawInput').value = `1. Las distinción entre muchedumbre y auditorios fue realizada por:
+A) Kimball Young
+B) Munné
+C) Roger Brown
+2. En el ámbito de la prevención de Riesgos Laborales aquella incapacidad que, sin alcanzar el grado total, ocasiona al trabajador una disminución no inferior al 33% en su rendimiento normal para la profesión habitual, sin impedirle la realización de las tareas fundamentales de la misma es una incapacidad:
+A) Temporal
+B) Permanente total
+C) Permanente parcial
+3. Según el Real Decreto 704/2011 por el que se aprueba el Reglamento de protección de las infraestructuras críticas, el encargado de proponer a la Secretaría de Estado de Seguridad la declaración de una zona como crítica es:
+A) El Delegado de Gobierno a través del CNPIC
+B) La Comisión Nacional para la Protección de las Infraestructuras Críticas
+C) El Ministro del Interior a través del CNPIC
+4. En atención a lo dispuesto en la Constitución Española de 1978, se prohíben:
+A) Ambas respuestas son correctas
+B) Los tribunales de honor en el ámbito de la Administración civil y militar
+C) Los tribunales de excepción
+5. Las armas que precisan de guía de pertenencia son las armas de las categorías:
+A) 1ª, 2ª, 3ª, 6ª, 7ª.1, 7ª.2, 7ª.3, 7ª.4, 7ª.5 y 8ª
+B) 1ª, 2ª, 3ª, 6ª, 7ª.1, 7ª.2, 7ª.3 y 8ª
+C) 1ª, 2ª, 3ª, 6ª, 7ª.1, 7ª.2, 7ª.3, 7ª.4 y 8ª
+6. La mezcla entre MDMA y LSD la conocemos con el nombre de:
+A) Speed ball
+B) Fire ball
+C) Candyflip
+7. Con arreglo a la Ley Orgánica 4/2015 de protección de la seguridad ciudadana, las infracciones graves pueden ser multadas con un valor en euros que oscila entre:
+A) 600 y 3.000
+B) 601 y 30.000
+C) 601 y 3.000`;
+
+  processAndRender();
+};
+</script>
+</body>
+</html>
